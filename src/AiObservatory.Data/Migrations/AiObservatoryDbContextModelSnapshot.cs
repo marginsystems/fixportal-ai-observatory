@@ -355,6 +355,10 @@ namespace AiObservatory.Data.Migrations
 
                     b.HasIndex("CreatedAt");
 
+                    b.HasIndex("FirstReviewAt");
+
+                    b.HasIndex("MergedAt");
+
                     b.HasIndex("Repo", "Number")
                         .IsUnique();
 

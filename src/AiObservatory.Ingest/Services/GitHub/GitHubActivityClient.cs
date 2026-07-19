@@ -40,27 +40,41 @@ public class GitHubActivityClient(HttpClient http, ILogger<GitHubActivityClient>
             var reachedOlderThanSince = false;
             foreach (var pr in prs)
             {
-                var updatedAt = InstantPattern.ExtendedIso.Parse(pr.UpdatedAt).Value;
-                if (updatedAt.InUtc().Date < since)
+                if (InstantPattern.ExtendedIso.Parse(pr.UpdatedAt) is not { Success: true } upd)
+                    continue;
+                if (upd.Value.InUtc().Date < since)
                 {
                     reachedOlderThanSince = true;
                     break;
                 }
 
-                var createdAt = InstantPattern.ExtendedIso.Parse(pr.CreatedAt).Value;
+                if (InstantPattern.ExtendedIso.Parse(pr.CreatedAt) is not { Success: true } cr)
+                    continue;
 
                 var (reviewCount, firstReviewAt) = await GetReviewSummaryAsync(repo, pr.Number, ct);
-                Instant? mergedAt = pr.MergedAt is null ? null : InstantPattern.ExtendedIso.Parse(pr.MergedAt).Value;
+                Instant? mergedAt = null;
+                if (pr.MergedAt is not null)
+                {
+                    if (InstantPattern.ExtendedIso.Parse(pr.MergedAt) is not { Success: true } mg)
+                        continue;
+                    mergedAt = mg.Value;
+                }
                 // GitHub's REST API only ever returns "open"/"closed" for `state` — mergedness
                 // is signaled separately via `merged_at`. Derive the 3-way state promised by
                 // the entity/frontend rather than passing the raw 2-way API value through.
                 var state = mergedAt is not null ? "merged" : pr.State;
+
+                Instant? closedAt = null;
+                if (pr.ClosedAt is not null)
+                {
+                    if (InstantPattern.ExtendedIso.Parse(pr.ClosedAt) is not { Success: true } cl)
+                        continue;
+                    closedAt = cl.Value;
+                }
+
                 results.Add(new GitHubPullRequestRecord(
                     repo, pr.Number, pr.Title, pr.User.Login, state,
-                    createdAt,
-                    mergedAt,
-                    pr.ClosedAt is null ? null : InstantPattern.ExtendedIso.Parse(pr.ClosedAt).Value,
-                    firstReviewAt, reviewCount));
+                    cr.Value, mergedAt, closedAt, firstReviewAt, reviewCount));
             }
 
             if (reachedOlderThanSince || prs.Count < PerPage) break;
@@ -81,7 +95,9 @@ public class GitHubActivityClient(HttpClient http, ILogger<GitHubActivityClient>
         // reviews count toward FirstReviewAt, but ReviewCount still reflects every review.
         var submittedAts = reviews
             .Where(r => r.SubmittedAt is not null)
-            .Select(r => InstantPattern.ExtendedIso.Parse(r.SubmittedAt!).Value)
+            .Select(r => InstantPattern.ExtendedIso.Parse(r.SubmittedAt!))
+            .Where(r => r.Success)
+            .Select(r => r.Value)
             .ToList();
         Instant? first = submittedAts.Count > 0 ? submittedAts.Min() : null;
         return (reviews.Count, first);
@@ -89,6 +105,12 @@ public class GitHubActivityClient(HttpClient http, ILogger<GitHubActivityClient>
 
     private void CheckRateLimit(HttpResponseMessage response)
     {
+        if ((int)response.StatusCode == 403 && response.Headers.RetryAfter is not null)
+        {
+            logger.LogWarning("GitHub secondary rate-limit detected; aborting remaining repos this poll cycle");
+            throw new GitHubRateLimitExceededException(0);
+        }
+
         if (response.Headers.TryGetValues("X-RateLimit-Remaining", out var values)
             && int.TryParse(values.FirstOrDefault(), out var remaining)
             && remaining < RateLimitFloor)
@@ -122,9 +144,10 @@ public class GitHubActivityClient(HttpClient http, ILogger<GitHubActivityClient>
                 var detail = await detailResponse.Content.ReadFromJsonAsync<CommitDetailDto>(JsonOptions, ct)
                     ?? new CommitDetailDto(c.Sha, new CommitStatsDto(0, 0));
 
+                if (InstantPattern.ExtendedIso.Parse(c.Commit.Author.Date) is not { Success: true } dt)
+                    continue;
                 results.Add(new GitHubCommitRecord(
-                    repo, c.Sha, c.Commit.Author.Name,
-                    InstantPattern.ExtendedIso.Parse(c.Commit.Author.Date).Value,
+                    repo, c.Sha, c.Commit.Author.Name, dt.Value,
                     detail.Stats.Additions, detail.Stats.Deletions));
             }
 
@@ -149,9 +172,10 @@ public class GitHubActivityClient(HttpClient http, ILogger<GitHubActivityClient>
 
             foreach (var run in body.WorkflowRuns)
             {
+                if (InstantPattern.ExtendedIso.Parse(run.CreatedAt) is not { Success: true } runDt)
+                    continue;
                 results.Add(new GitHubWorkflowRunRecord(
-                    repo, run.Id, run.Name, run.Conclusion ?? run.Status,
-                    InstantPattern.ExtendedIso.Parse(run.CreatedAt).Value));
+                    repo, run.Id, run.Name, run.Conclusion ?? run.Status, runDt.Value));
             }
 
             if (body.WorkflowRuns.Count < PerPage) break;

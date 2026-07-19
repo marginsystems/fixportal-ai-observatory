@@ -101,6 +101,8 @@ public class AiObservatoryDbContext(DbContextOptions<AiObservatoryDbContext> opt
             b.Property(p => p.State).HasMaxLength(20).IsRequired();
             b.HasIndex(p => new { p.Repo, p.Number }).IsUnique();
             b.HasIndex(p => p.CreatedAt);
+            b.HasIndex(p => p.MergedAt);
+            b.HasIndex(p => p.FirstReviewAt);
             b.ToTable(t => t.HasCheckConstraint("CK_GitHubPullRequest_ReviewCount_NonNegative", "\"ReviewCount\" >= 0"));
         });
 

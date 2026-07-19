@@ -3,6 +3,7 @@ param planName string
 param appName string
 param kvName string
 param aiConnectionString string
+param githubRepoAllowlist array = []
 
 var keyVaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
 
@@ -24,7 +25,7 @@ resource app 'Microsoft.Web/sites@2023-01-01' = {
     siteConfig: {
       linuxFxVersion: 'DOTNETCORE|10.0'
       alwaysOn: true
-      appSettings: [
+      appSettings: concat([
         { name: 'DB_CONNECTION', value: '@Microsoft.KeyVault(VaultName=${kvName};SecretName=db-connection)' }
         // Optional provider keys — referenced from Key Vault. Set these secrets in Key Vault to enable each provider.
         { name: 'ANTHROPIC_BILLING_KEY', value: '@Microsoft.KeyVault(VaultName=${kvName};SecretName=anthropic-billing-key)' }
@@ -32,7 +33,10 @@ resource app 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'COPILOT_ORG', value: '@Microsoft.KeyVault(VaultName=${kvName};SecretName=copilot-org)' }
         { name: 'GOOGLE_BILLING_ACCOUNT_ID', value: '@Microsoft.KeyVault(VaultName=${kvName};SecretName=google-billing-account-id)' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: aiConnectionString }
-      ]
+      ], [for (repo, i) in githubRepoAllowlist: {
+        name: 'Ingest__GitHubRepoAllowlist__${i}'
+        value: repo
+      }])
     }
   }
 }

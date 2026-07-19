@@ -89,6 +89,16 @@ namespace AiObservatory.Data.Migrations
                 column: "CreatedAt");
 
             migrationBuilder.CreateIndex(
+                name: "IX_GitHubPullRequests_MergedAt",
+                table: "GitHubPullRequests",
+                column: "MergedAt");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_GitHubPullRequests_FirstReviewAt",
+                table: "GitHubPullRequests",
+                column: "FirstReviewAt");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_GitHubPullRequests_Repo_Number",
                 table: "GitHubPullRequests",
                 columns: new[] { "Repo", "Number" },
