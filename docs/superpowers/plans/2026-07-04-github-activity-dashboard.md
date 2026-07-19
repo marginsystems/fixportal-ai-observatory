@@ -1434,9 +1434,10 @@ public static class GitHubActivityEndpoints
                 {
                     var total = g.Count();
                     var failed = g.Count(r => r.Status == "failure");
+                    var succeeded = g.Count(r => r.Status == "success");
                     return new GitHubCiResponse(
                         g.Key.Repo, g.Key.WorkflowName, total, failed,
-                        total > 0 ? Math.Round((total - failed) * 100.0 / total, 1) : 0);
+                        total > 0 ? Math.Round(succeeded * 100.0 / total, 1) : 0);
                 })
                 .OrderByDescending(r => r.TotalRuns)
                 .ToList();

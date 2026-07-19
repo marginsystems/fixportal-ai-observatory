@@ -108,7 +108,7 @@ var host = Host.CreateDefaultBuilder(args)
             services.AddHttpClient<IGitHubActivityClient, GitHubActivityClient>(c =>
             {
                 c.BaseAddress = new Uri("https://api.github.com");
-                c.DefaultRequestHeaders.Add("Authorization", $"Bearer {githubToken}");
+                c.DefaultRequestHeaders.Add("Authorization", $"Bearer {githubToken!}");
                 c.DefaultRequestHeaders.Add("User-Agent", "fpaiobs-ingest");
                 c.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
             });

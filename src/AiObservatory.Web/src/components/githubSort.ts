@@ -16,7 +16,7 @@ export function sortPrs(prs: GitHubPr[], field: PrSortField, direction: SortDire
     if (field === 'repo') comparison = a.repo.localeCompare(b.repo)
     else if (field === 'createdAt') comparison = a.createdAt.localeCompare(b.createdAt)
     else if (field === 'reviewCount') comparison = a.reviewCount - b.reviewCount
-    else comparison = (a.turnaroundHours ?? -1) - (b.turnaroundHours ?? -1)
+    else comparison = (a.turnaroundHours ?? Infinity) - (b.turnaroundHours ?? Infinity)
     return direction === 'asc' ? comparison : -comparison
   })
 }
