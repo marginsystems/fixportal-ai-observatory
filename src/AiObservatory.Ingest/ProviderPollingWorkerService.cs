@@ -1,6 +1,7 @@
 using AiObservatory.Ingest.Services.Anthropic;
 using AiObservatory.Ingest.Services.Copilot;
 using AiObservatory.Ingest.Services.Google;
+using AiObservatory.Ingest.Services.GitHub;
 using AiObservatory.Ingest.Services.OpenAi;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -58,6 +59,18 @@ public class ProviderPollingWorkerService(
             (s, d) => s.IngestAsync(d, ct), dates);
         await TryIngestAsync<OpenAiIngestionService>(sp, "OpenAI",
             (s, d) => s.IngestAsync(d, ct), dates);
+        // GitHub takes a since-date RANGE per call (unlike the other providers'
+        // single-day calls), so it's invoked once per cycle with the earliest
+        // lookback date, not once per date in `dates`.
+        await TryIngestAsync<GitHubIngestionService>(sp, "GitHub",
+            async (s, _) =>
+            {
+                var failed = await s.IngestSinceAsync(dates[0], ct);
+                if (failed > 0 && failed == options.Value.GitHubRepoAllowlist.Length)
+                {
+                    throw new InvalidOperationException($"All {failed} configured GitHub repos failed to ingest this cycle");
+                }
+            }, [dates[0]]);
     }
 
     private async Task TryIngestAsync<TService>(
